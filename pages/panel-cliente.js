@@ -31,7 +31,7 @@ export default function PanelCliente() {
       }
 
       if (!cli) {
-        // sin perfil: mostramos CTA para completarlo (no redirijo solo)
+        // sin perfil: CTA para completarlo (no redirijo solo)
         setCliente(null)
         setPedidos([])
         setCargando(false)
@@ -121,7 +121,7 @@ export default function PanelCliente() {
       </header>
 
       <section style={{ marginBottom: 16 }}>
-        <a href="/nuevo-pedido"><button>+ Crear nuevo pedido</button></a>
+        <a href="/nuevo-pedido-multiple"><button>+ Crear nuevo pedido</button></a>
       </section>
 
       {msg && <p style={{ color: 'crimson' }}>{msg}</p>}
@@ -162,7 +162,7 @@ export default function PanelCliente() {
                     </div>
                   </td>
                   <td style={{ whiteSpace: 'nowrap' }}>
-                    <a href="/nuevo-pedido">Repetir pedido</a>
+                    <a href="/nuevo-pedido-multiple">Repetir pedido</a>
                   </td>
                 </tr>
               )
