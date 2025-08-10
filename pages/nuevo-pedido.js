@@ -12,7 +12,7 @@ export default function NuevoPedido() {
   const [localidad, setLocalidad] = useState('CABA')
 
   const [servicios, setServicios] = useState({
-    fotos: false,
+    fotos: true,
     plano: false,
     video_horizontal: false,
     tour_360: false,
@@ -34,6 +34,7 @@ export default function NuevoPedido() {
     setMsg('')
     if (!user) return
     try {
+      // 1) propiedad
       const { data: prop, error: errProp } = await supabase
         .from('propiedades')
         .insert([{ cliente_id: user.id, tipo, direccion, barrio, localidad }])
@@ -41,9 +42,15 @@ export default function NuevoPedido() {
         .single()
       if (errProp) throw errProp
 
+      // 2) pedido (usa servicios_basicos)
       const { error: errPed } = await supabase
         .from('pedidos')
-        .insert([{ cliente_id: user.id, propiedad_id: prop.id, servicios, estado: 'nuevo' }])
+        .insert([{
+          cliente_id: user.id,
+          propiedad_id: prop.id,
+          servicios_basicos: servicios,   // <-- CAMBIO
+          estado: 'nuevo'
+        }])
       if (errPed) throw errPed
 
       setMsg('✅ Pedido creado.')
@@ -69,6 +76,7 @@ export default function NuevoPedido() {
         <input placeholder="Dirección (obligatorio)" value={direccion} onChange={e=>setDireccion(e.target.value)} required />
         <input placeholder="Barrio" value={barrio} onChange={e=>setBarrio(e.target.value)} />
         <input placeholder="Localidad" value={localidad} onChange={e=>setLocalidad(e.target.value)} />
+
         <fieldset style={{ border: '1px solid #ddd', padding: 12 }}>
           <legend>Servicios básicos</legend>
           <label><input type="checkbox" checked={servicios.fotos} onChange={()=>toggleServicio('fotos')} /> Fotos</label><br/>
@@ -76,8 +84,10 @@ export default function NuevoPedido() {
           <label><input type="checkbox" checked={servicios.video_horizontal} onChange={()=>toggleServicio('video_horizontal')} /> Video horizontal</label><br/>
           <label><input type="checkbox" checked={servicios.tour_360} onChange={()=>toggleServicio('tour_360')} /> Tour 360º</label>
         </fieldset>
+
         <button type="submit">Crear pedido</button>
       </form>
+
       {msg && <p style={{ marginTop: 12 }}>{msg}</p>}
       <hr style={{ margin: '24px 0' }} />
       <a href="/">Volver al inicio</a>
