@@ -1,73 +1,119 @@
-import { useState } from 'react'
+// pages/registro.js
+import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 
 export default function Registro() {
   const [form, setForm] = useState({
     nombre: '', apellido: '', empresa: '',
-    telefono: '', cuit: '', condicion_iva: '',
+    telefono: '', cuit: '', condicion_iva: 'Responsable Inscripto',
     direccion_facturacion: '', email: '', password: ''
   })
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState(null)
-  const [ok, setOk] = useState(false)
+  const [msg, setMsg] = useState('')
 
-  const handleChange = e => {
-    setForm({ ...form, [e.target.name]: e.target.value })
-  }
+  // Si ya hay sesión, no permito registro: voy al panel
+  useEffect(() => {
+    (async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session) window.location.href = '/panel-cliente'
+    })()
+    const { data: sub } = supabase.auth.onAuthStateChange((_, session) => {
+      if (session) window.location.href = '/panel-cliente'
+    })
+    return () => sub?.subscription?.unsubscribe()
+  }, [])
 
-  const handleSubmit = async e => {
+  const onChange = (e) => setForm(s => ({ ...s, [e.target.name]: e.target.value }))
+
+  const onSubmit = async (e) => {
     e.preventDefault()
+    setMsg('')
     setLoading(true)
-    setError(null)
-
     try {
-      // 1) Crear usuario en Supabase Auth
-      const { data, error: signUpError } = await supabase.auth.signUp({
+      // 1) crear usuario en Auth
+      const { data, error: eSign } = await supabase.auth.signUp({
         email: form.email,
         password: form.password
       })
-      if (signUpError) throw signUpError
+      if (eSign) throw eSign
 
-      // 2) Guardar datos adicionales en tabla clientes
-      const { error: insertError } = await supabase.from('clientes').insert([{
-        id_auth: data.user.id,
+      // 2) si la confirmación de email está desactivada, intento loguear directo
+      await supabase.auth.signInWithPassword({
+        email: form.email,
+        password: form.password
+      }).catch(() => {})
+
+      // 3) obtener user actual (puede ser null si hay confirmación por email)
+      const { data: u } = await supabase.auth.getUser()
+      const userId = u?.user?.id
+      const userEmail = u?.user?.email || form.email
+
+      if (!userId) {
+        setMsg('Registro creado. Revisá tu email para confirmar la cuenta y después iniciá sesión.')
+        return
+      }
+
+      // 4) upsert del perfil en public.clientes (clave por user_id)
+      const payload = {
+        user_id: userId,
+        email: userEmail,
         nombre: form.nombre,
         apellido: form.apellido,
         empresa: form.empresa,
         telefono: form.telefono,
         cuit: form.cuit,
         condicion_iva: form.condicion_iva,
-        direccion_facturacion: form.direccion_facturacion,
-        email: form.email
-      }])
-      if (insertError) throw insertError
+        direccion_facturacion: form.direccion_facturacion
+      }
 
-      setOk(true)
+      const { error: eUpsert } = await supabase
+        .from('clientes')
+        .upsert(payload, { onConflict: 'user_id' })
+
+      if (eUpsert) throw eUpsert
+
+      // 5) al panel
+      window.location.href = '/panel-cliente'
     } catch (err) {
-      setError(err.message)
+      setMsg('❌ ' + (err?.message || 'No se pudo completar el registro'))
     } finally {
       setLoading(false)
     }
   }
 
-  if (ok) return <p>Registro exitoso. Revisá tu email para confirmar la cuenta.</p>
-
   return (
-    <main style={{maxWidth:500, margin:'auto', padding:24, fontFamily:'sans-serif'}}>
+    <main style={{ maxWidth: 560, margin: '0 auto', padding: 24, fontFamily: 'sans-serif' }}>
       <h2>Crear cuenta</h2>
-      <form onSubmit={handleSubmit} style={{display:'grid', gap:'1rem'}}>
-        <input name="nombre" placeholder="Nombre" onChange={handleChange} required />
-        <input name="apellido" placeholder="Apellido" onChange={handleChange} required />
-        <input name="empresa" placeholder="Empresa" onChange={handleChange} />
-        <input name="telefono" placeholder="Teléfono" onChange={handleChange} required />
-        <input name="cuit" placeholder="CUIT" onChange={handleChange} />
-        <input name="condicion_iva" placeholder="Condición frente al IVA" onChange={handleChange} />
-        <input name="direccion_facturacion" placeholder="Dirección de facturación" onChange={handleChange} />
-        <input type="email" name="email" placeholder="Email" onChange={handleChange} required />
-        <input type="password" name="password" placeholder="Contraseña" onChange={handleChange} required />
+      <form onSubmit={onSubmit} style={{ display: 'grid', gap: 12, marginTop: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <input name="nombre" placeholder="Nombre *" value={form.nombre} onChange={onChange} required />
+          <input name="apellido" placeholder="Apellido *" value={form.apellido} onChange={onChange} required />
+        </div>
+        <input name="empresa" placeholder="Empresa" value={form.empresa} onChange={onChange} />
+        <input name="telefono" placeholder="Teléfono *" value={form.telefono} onChange={onChange} required />
+        <input name="cuit" placeholder="CUIT *" value={form.cuit} onChange={onChange} required />
+        <label>Condición frente al IVA
+          <select name="condicion_iva" value={form.condicion_iva} onChange={onChange}>
+            <option>Responsable Inscripto</option>
+            <option>Monotributista</option>
+            <option>Exento</option>
+            <option>Consumidor Final</option>
+          </select>
+        </label>
+        <input name="direccion_facturacion" placeholder="Dirección de facturación *"
+               value={form.direccion_facturacion} onChange={onChange} required />
+        <input type="email" name="email" placeholder="Email *" value={form.email} onChange={onChange} required />
+        <input type="password" name="password" placeholder="Contraseña *"
+               value={form.password} onChange={onChange} required />
+
+        {msg && <p style={{ color: 'crimson', marginTop: 4 }}>{msg}</p>}
+
         <button disabled={loading}>{loading ? 'Creando...' : 'Registrarme'}</button>
       </form>
-      {error && <p style={{color:'red'}}>{error}</p>}
+
+      <p style={{ marginTop: 16 }}>
+        ¿Ya tenés cuenta? <a href="/auth?view=sign_in">Iniciar sesión</a>
+      </p>
     </main>
   )
 }
