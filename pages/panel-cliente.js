@@ -1,86 +1,39 @@
-// pages/panel_cliente.js
-import { useEffect, useState } from 'react';
-import { supabase } from '../lib/supabaseClient';
-import Link from 'next/link';
+import { useEffect, useState } from 'react'
+import { supabase } from '../lib/supabaseClient'
 
 export default function PanelCliente() {
-  const [pedidos, setPedidos] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true)
+  const [user, setUser] = useState(null)
+  const [cliente, setCliente] = useState(null)
+  const [pedidos, setPedidos] = useState([])
+  const [msg, setMsg] = useState('')
 
   useEffect(() => {
-    const fetchPedidos = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        window.location.href = '/auth';
-        return;
-      }
+    (async () => {
+      setMsg('')
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) { window.location.href = '/auth'; return }
+      setUser(session.user)
 
-      // Obtener cliente_id
-      const { data: cliente } = await supabase
+      // 1) Traer el cliente asociado a este usuario
+      const { data: cli, error: cliErr } = await supabase
         .from('clientes')
-        .select('id')
-        .eq('user_id', user.id)
-        .single();
+        .select('id,nombre,apellido,empresa')
+        .eq('user_id', session.user.id)
+        .single()
 
-      if (!cliente) {
-        window.location.href = '/perfil';
-        return;
-      }
+      if (cliErr || !cli) { window.location.href = '/perfil'; return }
+      setCliente(cli)
 
-      // Traer pedidos de ese cliente
-      const { data: pedidosData, error } = await supabase
+      // 2) Traer pedidos del cliente con entregas y pagos
+      const { data: peds, error: pedErr } = await supabase
         .from('pedidos')
-        .select('*')
-        .eq('cliente_id', cliente.id)
-        .order('fecha_creacion', { ascending: false });
+        .select(`
+          id, estado, created_at, precio_final, propiedad_id,
+          entregas:entregas ( id, tipo, url, estado ),
+          pagos:pagos ( id, tipo_pago, monto, estado, created_at )
+        `)
+        .eq('cliente_id', cli.id)
+        .order('created_at', { ascending: false })
 
-      if (error) console.error(error);
-      else setPedidos(pedidosData);
-
-      setLoading(false);
-    };
-
-    fetchPedidos();
-  }, []);
-
-  if (loading) return <p>Cargando panel...</p>;
-
-  return (
-    <main style={{ padding: 24, fontFamily: 'sans-serif' }}>
-      <h1>Panel de Cliente</h1>
-      <nav style={{ marginBottom: 16 }}>
-        <Link href="/nuevo-pedido">➕ Crear nuevo pedido</Link> |{' '}
-        <Link href="/pagos">💳 Gestionar pagos</Link>
-      </nav>
-
-      <h2>Mis pedidos</h2>
-      {pedidos.length === 0 ? (
-        <p>No tenés pedidos todavía.</p>
-      ) : (
-        <table border="1" cellPadding="8">
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Estado</th>
-              <th>Servicios</th>
-              <th>Fecha creación</th>
-            </tr>
-          </thead>
-          <tbody>
-            {pedidos.map((p) => (
-              <tr key={p.id}>
-                <td>{p.id}</td>
-                <td>{p.estado}</td>
-                <td>{p.servicios_basicos}</td>
-                <td>{new Date(p.fecha_creacion).toLocaleDateString()}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-
-      <h2>Material editado</h2>
-      <p>(Acá se mostrarán los links al material una vez esté editado)</p>
-    </main>
-  );
-}
+      if (pedErr) setMsg('No pude cargar pedidos: ' + pedErr.message
