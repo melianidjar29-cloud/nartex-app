@@ -1,9 +1,0 @@
-export default function Home() {
-  return (
-    <main style={{padding: 24, fontFamily: 'sans-serif'}}>
-      <h1>Nartex App</h1>
-      <p>Proyecto base funcionando.</p>
-      <a href="/auth">Ir a Login/Registro</a>
-    </main>
-  )
-}
