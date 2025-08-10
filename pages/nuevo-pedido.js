@@ -6,11 +6,13 @@ export default function NuevoPedido() {
   const [user, setUser] = useState(null)
   const [msg, setMsg] = useState('')
 
+  // Campos mínimos (podés ampliar después)
   const [tipo, setTipo] = useState('Departamento')
   const [direccion, setDireccion] = useState('')
   const [barrio, setBarrio] = useState('')
   const [localidad, setLocalidad] = useState('CABA')
 
+  // Servicios básicos (se guardan en pedidos.servicios_basicos JSONB)
   const [servicios, setServicios] = useState({
     fotos: true,
     plano: false,
@@ -33,28 +35,52 @@ export default function NuevoPedido() {
     e.preventDefault()
     setMsg('')
     if (!user) return
+
     try {
-      // 1) propiedad
+      // 1) buscar el cliente (tu tabla) por el user_id de Auth
+      const { data: cli, error: cliErr } = await supabase
+        .from('clientes')
+        .select('id')
+        .eq('user_id', user.id)
+        .single()
+
+      if (cliErr || !cli) {
+        // si no tiene perfil completo, mandalo a completarlo
+        window.location.href = '/perfil'
+        return
+      }
+      const clienteId = cli.id
+
+      // 2) crear propiedad (mínimo)
       const { data: prop, error: errProp } = await supabase
         .from('propiedades')
-        .insert([{ cliente_id: user.id, tipo, direccion, barrio, localidad }])
+        .insert([{
+          cliente_id: clienteId,
+          tipo,
+          direccion,
+          barrio,
+          localidad
+        }])
         .select()
         .single()
       if (errProp) throw errProp
 
-      // 2) pedido (usa servicios_basicos)
+      // 3) crear pedido asociado (usa tu columna servicios_basicos)
       const { error: errPed } = await supabase
         .from('pedidos')
         .insert([{
-          cliente_id: user.id,
+          cliente_id: clienteId,
           propiedad_id: prop.id,
-          servicios_basicos: servicios,   // <-- CAMBIO
+          servicios_basicos: servicios,
           estado: 'nuevo'
         }])
       if (errPed) throw errPed
 
       setMsg('✅ Pedido creado.')
-      setDireccion(''); setBarrio(''); setLocalidad('CABA')
+      // limpiar formulario
+      setDireccion('')
+      setBarrio('')
+      setLocalidad('CABA')
       setServicios({ fotos: true, plano: false, video_horizontal: false, tour_360: false })
     } catch (err) {
       setMsg('❌ Error: ' + (err?.message || 'algo salió mal'))
@@ -66,16 +92,34 @@ export default function NuevoPedido() {
   return (
     <main style={{ padding: 24, fontFamily: 'sans-serif', maxWidth: 520, margin: '0 auto' }}>
       <h2>Nuevo pedido</h2>
+
       <form onSubmit={onSubmit} style={{ display: 'grid', gap: 12, marginTop: 12 }}>
         <label>Tipo de propiedad
           <select value={tipo} onChange={e=>setTipo(e.target.value)}>
-            <option>Departamento</option><option>Casa</option><option>PH</option>
-            <option>Local</option><option>Oficina</option>
+            <option>Departamento</option>
+            <option>Casa</option>
+            <option>PH</option>
+            <option>Local</option>
+            <option>Oficina</option>
           </select>
         </label>
-        <input placeholder="Dirección (obligatorio)" value={direccion} onChange={e=>setDireccion(e.target.value)} required />
-        <input placeholder="Barrio" value={barrio} onChange={e=>setBarrio(e.target.value)} />
-        <input placeholder="Localidad" value={localidad} onChange={e=>setLocalidad(e.target.value)} />
+
+        <input
+          placeholder="Dirección (obligatorio)"
+          value={direccion}
+          onChange={e=>setDireccion(e.target.value)}
+          required
+        />
+        <input
+          placeholder="Barrio"
+          value={barrio}
+          onChange={e=>setBarrio(e.target.value)}
+        />
+        <input
+          placeholder="Localidad"
+          value={localidad}
+          onChange={e=>setLocalidad(e.target.value)}
+        />
 
         <fieldset style={{ border: '1px solid #ddd', padding: 12 }}>
           <legend>Servicios básicos</legend>
@@ -89,8 +133,9 @@ export default function NuevoPedido() {
       </form>
 
       {msg && <p style={{ marginTop: 12 }}>{msg}</p>}
+
       <hr style={{ margin: '24px 0' }} />
-      <a href="/">Volver al inicio</a>
+      <a href="/panel">Ir a mi panel</a>
     </main>
   )
 }
