@@ -7,7 +7,8 @@ export default function Home() {
       <p>Accedé a tu cuenta o creá una nueva.</p>
       <div style={{display:'flex', gap:'1rem', justifyContent:'center', marginTop:'2rem'}}>
         <Link href="/auth?view=sign_in"><button style={btn}>Iniciar sesión</button></Link>
-        <Link href="/auth?view=sign_up"><button style={btnOutline}>Crear cuenta</button></Link>
+        <Link href="/registro"><button style={btnOutline}>Crear cuenta</button></Link>
+
       </div>
     </main>
   )
