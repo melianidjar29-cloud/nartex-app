@@ -5,86 +5,90 @@ import { supabase } from '../lib/supabaseClient'
 export default function AuthPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [error, setError] = useState(null)
+  const [msg, setMsg] = useState('')
   const [loading, setLoading] = useState(false)
 
   const goPanel = () => (window.location.href = '/panel-cliente')
 
-  // Crea fila mínima en `clientes` si no existe (user_id + email)
+  // Crea/asegura la fila en `clientes` para el usuario logueado
   const ensureCliente = async () => {
-    const { data: u } = await supabase.auth.getUser()
+    const { data: u, error: eu } = await supabase.auth.getUser()
+    if (eu) throw eu
     const userId = u?.user?.id
     const userEmail = u?.user?.email
-    if (!userId) return
+    if (!userId) throw new Error('No hay usuario en sesión.')
 
-    const { data: cli } = await supabase
+    // ¿ya existe?
+    const { data: cli, error: sErr } = await supabase
       .from('clientes')
       .select('id')
       .eq('user_id', userId)
-      .single()
+      .maybeSingle()
 
-    if (!cli) {
-      await supabase.from('clientes').insert([{ user_id: userId, email: userEmail }])
-    }
+    if (sErr) throw sErr
+    if (cli) return cli.id
+
+    // crear (o actualizar si justo existe)
+    const { data: ins, error: iErr } = await supabase
+      .from('clientes')
+      .upsert(
+        [{ user_id: userId, email: userEmail }],
+        { onConflict: 'user_id' }
+      )
+      .select('id')
+      .maybeSingle()
+
+    if (iErr) throw iErr
+    return ins?.id
   }
 
   const handleSignIn = async (e) => {
     e.preventDefault()
-    setError(null); setLoading(true)
+    setMsg(''); setLoading(true)
+    try {
+      const { error } = await supabase.auth.signInWithPassword({ email, password })
+      if (error) throw error
 
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
-    setLoading(false)
-
-    if (error) return setError(error.message)
-
-    // crea cliente si falta y va al panel
-    await ensureCliente()
-    goPanel()
+      await ensureCliente()
+      goPanel()
+    } catch (err) {
+      setMsg('❌ ' + (err?.message || 'Error al iniciar sesión'))
+    } finally {
+      setLoading(false)
+    }
   }
 
   const handleSignUp = async (e) => {
     e.preventDefault()
-    setError(null); setLoading(true)
+    setMsg(''); setLoading(true)
+    try {
+      const { error } = await supabase.auth.signUp({ email, password })
+      if (error) throw error
 
-    const { error } = await supabase.auth.signUp({ email, password })
-    if (error) { setLoading(false); return setError(error.message) }
+      // si no usás confirmación, iniciá sesión; si sí, este paso puede fallar hasta confirmar
+      await supabase.auth.signInWithPassword({ email, password }).catch(()=>{})
 
-    // si no usás confirmación por email, iniciamos sesión directo
-    await supabase.auth.signInWithPassword({ email, password }).catch(() => {})
-    setLoading(false)
-
-    // crea cliente si falta y va al panel
-    await ensureCliente()
-    goPanel()
+      await ensureCliente()
+      goPanel()
+    } catch (err) {
+      setMsg('❌ ' + (err?.message || 'Error al registrarse'))
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
     <main style={{ padding: 24, fontFamily: 'sans-serif' }}>
       <h2>Login / Registro</h2>
-
-      <form style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 300 }}>
-        <input
-          type="email"
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-        />
-
-        <input
-          type="password"
-          placeholder="Contraseña"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-        />
-
-        {error && <p style={{ color: 'crimson' }}>{error}</p>}
-
+      <form style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 320 }}>
+        <input type="email" placeholder="Email" value={email}
+               onChange={(e) => setEmail(e.target.value)} required />
+        <input type="password" placeholder="Contraseña" value={password}
+               onChange={(e) => setPassword(e.target.value)} required />
+        {msg && <p style={{ color: 'crimson' }}>{msg}</p>}
         <button onClick={handleSignIn} disabled={loading}>
           {loading ? 'Ingresando...' : 'Iniciar sesión'}
         </button>
-
         <button onClick={handleSignUp} disabled={loading}>
           {loading ? 'Registrando...' : 'Registrarse'}
         </button>
