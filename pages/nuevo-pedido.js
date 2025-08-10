@@ -12,7 +12,7 @@ export default function NuevoPedido() {
   const [localidad, setLocalidad] = useState('CABA')
 
   const [servicios, setServicios] = useState({
-    fotos: true,
+    fotos: false,
     plano: false,
     video_horizontal: false,
     tour_360: false,
@@ -35,14 +35,14 @@ export default function NuevoPedido() {
     if (!user) return
     try {
       const { data: prop, error: errProp } = await supabase
-        .from('propiedades')
+        .from('Propiedades')
         .insert([{ cliente_id: user.id, tipo, direccion, barrio, localidad }])
         .select()
         .single()
       if (errProp) throw errProp
 
       const { error: errPed } = await supabase
-        .from('pedidos')
+        .from('Pedidos')
         .insert([{ cliente_id: user.id, propiedad_id: prop.id, servicios, estado: 'nuevo' }])
       if (errPed) throw errPed
 
