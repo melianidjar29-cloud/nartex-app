@@ -35,14 +35,14 @@ export default function NuevoPedido() {
     if (!user) return
     try {
       const { data: prop, error: errProp } = await supabase
-        .from('Propiedades')
+        .from('propiedades')
         .insert([{ cliente_id: user.id, tipo, direccion, barrio, localidad }])
         .select()
         .single()
       if (errProp) throw errProp
 
       const { error: errPed } = await supabase
-        .from('Pedidos')
+        .from('pedidos')
         .insert([{ cliente_id: user.id, propiedad_id: prop.id, servicios, estado: 'nuevo' }])
       if (errPed) throw errPed
 
