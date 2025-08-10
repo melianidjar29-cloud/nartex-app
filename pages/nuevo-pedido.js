@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 
-const TALLY_BASE = 'https://tally.so/r/npP88J' // tu form
+const TALLY_BASE = 'https://tally.so/r/nGPXZj' // tu form
 
 export default function NuevoPedidoEmbed() {
   const [cargando, setCargando] = useState(true)
