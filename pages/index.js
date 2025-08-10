@@ -4,6 +4,7 @@ export default function Home() {
       <h1>Nartex App</h1>
       <p>Proyecto base funcionando.</p>
       <a href="/auth">Iniciar sesión / Registro</a>
+      <a href="/nuevo-pedido">Crear nuevo pedido</a>
     </main>
   )
 }
