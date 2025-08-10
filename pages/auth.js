@@ -1,121 +1,80 @@
+// pages/auth.js
 import { useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 
-export default function Auth() {
-  const [modoLogin, setModoLogin] = useState(true)
-  const [msg, setMsg] = useState('')
-
-  // comunes
+export default function AuthPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [error, setError] = useState(null)
+  const [loading, setLoading] = useState(false)
 
-  // datos de perfil (solo para registro)
-  const [nombre, setNombre] = useState('')
-  const [apellido, setApellido] = useState('')
-  const [empresa, setEmpresa] = useState('')
-  const [telefono, setTelefono] = useState('')
-  const [cuit, setCuit] = useState('')
-  const [condIva, setCondIva] = useState('Responsable Inscripto')
-  const [dirFact, setDirFact] = useState('')
-
-  const irAlPanel = () => { window.location.href = '/panel' }
-
-  const onSubmit = async (e) => {
+  const handleSignIn = async (e) => {
     e.preventDefault()
-    setMsg('')
+    setError(null)
+    setLoading(true)
 
-    try {
-      if (modoLogin) {
-        const { error } = await supabase.auth.signInWithPassword({ email, password })
-        if (error) throw error
-        irAlPanel()
-        return
-      }
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password
+    })
 
-      // REGISTRO COMPLETO
-      if (!nombre || !apellido || !telefono || !cuit || !dirFact) {
-        setMsg('Completá todos los campos obligatorios.')
-        return
-      }
+    setLoading(false)
 
-      // 1) Crear usuario
-      const { error: signUpErr } = await supabase.auth.signUp({ email, password })
-      if (signUpErr) throw signUpErr
+    if (error) {
+      setError(error.message)
+    } else {
+      window.location.href = '/panel-cliente'
+    }
+  }
 
-      // Si la confirmación por email está desactivada, ya hay sesión.
-      // Si está activada, este paso requeriría confirmación previa.
-      // Para evitar líos, intentamos asegurar sesión:
-      await supabase.auth.signInWithPassword({ email, password }).catch(()=>{})
+  const handleSignUp = async (e) => {
+    e.preventDefault()
+    setError(null)
+    setLoading(true)
 
-      // 2) Obtener user_id actual
-      const { data: udata } = await supabase.auth.getUser()
-      const userId = udata?.user?.id
-      if (!userId) throw new Error('No se pudo obtener el usuario recién creado.')
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password
+    })
 
-      // 3) Guardar/actualizar perfil en public.clientes
-      const payload = {
-        user_id: userId,
-        email,
-        nombre,
-        apellido,
-        empresa,
-        telefono,
-        cuit,
-        condicion_iva: condIva,
-        direccion_facturacion: dirFact
-      }
+    setLoading(false)
 
-      const { error: upsertErr } = await supabase
-        .from('clientes')
-        .upsert(payload, { onConflict: 'user_id' })
-
-      if (upsertErr) throw upsertErr
-
-      setMsg('✅ Cuenta creada. Redirigiendo al panel…')
-      setTimeout(irAlPanel, 600)
-
-    } catch (err) {
-      setMsg('❌ ' + (err?.message || 'Error desconocido'))
+    if (error) {
+      setError(error.message)
+    } else {
+      alert('Registro exitoso. Revisá tu email para confirmar la cuenta.')
     }
   }
 
   return (
-    <main style={{padding: 24, fontFamily: 'sans-serif', maxWidth: 520, margin: '0 auto'}}>
-      <h2>{modoLogin ? 'Iniciar sesión' : 'Crear cuenta'}</h2>
+    <main style={{ padding: 24, fontFamily: 'sans-serif' }}>
+      <h2>Login / Registro</h2>
 
-      <form onSubmit={onSubmit} style={{display:'grid', gap:12, marginTop:12}}>
-        {!modoLogin && (
-          <>
-            <div style={{display:'grid', gap:8, gridTemplateColumns:'1fr 1fr'}}>
-              <input placeholder="Nombre*" value={nombre} onChange={e=>setNombre(e.target.value)} required />
-              <input placeholder="Apellido*" value={apellido} onChange={e=>setApellido(e.target.value)} required />
-            </div>
-            <input placeholder="Empresa" value={empresa} onChange={e=>setEmpresa(e.target.value)} />
-            <input placeholder="Teléfono*" value={telefono} onChange={e=>setTelefono(e.target.value)} required />
-            <input placeholder="CUIT*" value={cuit} onChange={e=>setCuit(e.target.value)} required />
-            <label>Condición frente al IVA
-              <select value={condIva} onChange={e=>setCondIva(e.target.value)}>
-                <option>Responsable Inscripto</option>
-                <option>Monotributista</option>
-                <option>Exento</option>
-                <option>Consumidor Final</option>
-              </select>
-            </label>
-            <input placeholder="Dirección de facturación*" value={dirFact} onChange={e=>setDirFact(e.target.value)} required />
-          </>
-        )}
+      <form style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 300 }}>
+        <input
+          type="email"
+          placeholder="Email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+        />
 
-        <input type="email" placeholder="Email*" value={email} onChange={e=>setEmail(e.target.value)} required />
-        <input type="password" placeholder="Contraseña*" value={password} onChange={e=>setPassword(e.target.value)} required />
+        <input
+          type="password"
+          placeholder="Contraseña"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+        />
 
-        <button type="submit">{modoLogin ? 'Entrar' : 'Crear cuenta'}</button>
+        {error && <p style={{ color: 'red' }}>{error}</p>}
+
+        <button onClick={handleSignIn} disabled={loading}>
+          {loading ? 'Ingresando...' : 'Iniciar sesión'}
+        </button>
+
+        <button onClick={handleSignUp} disabled={loading}>
+          {loading ? 'Registrando...' : 'Registrarse'}
+        </button>
       </form>
-
-      {msg && <p style={{marginTop:10}}>{msg}</p>}
-
-      <button onClick={()=>setModoLogin(!modoLogin)} style={{marginTop:12}}>
-        {modoLogin ? 'No tengo cuenta' : 'Ya tengo cuenta'}
-      </button>
     </main>
   )
 }
